@@ -29,7 +29,8 @@ class NVStringsImpl
 public:
     // this holds the strings in device memory
     // so operations can be performed on them through python calls
-    rmm::device_vector<custring_view*>* pList;
+    thrust::device_ptr<custring_view*> pList;
+    size_t pListSize;
     char* memoryBuffer;
     size_t bufferSize; // size of memoryBuffer only
     std::map<std::string,timing_record> mapTimes;
@@ -40,7 +41,7 @@ public:
     ~NVStringsImpl();
     char* createMemoryFor( size_t* d_lengths );
 
-    inline custring_view_array getStringsPtr()      { return pList->data().get(); }
+    inline custring_view_array getStringsPtr()      { return pList.get(); }
     inline char* getMemoryPtr()    { return memoryBuffer; }
     inline size_t getMemorySize()  { return bufferSize;  }
     inline cudaStream_t getStream()    { return stream_id;  }

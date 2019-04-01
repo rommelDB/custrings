@@ -207,7 +207,7 @@ void NVStrings::print( int start, int end, int maxwidth, const char* delimiter )
     cudaMemcpy(h_buffer, d_buffer, msize, cudaMemcpyDeviceToHost);
     RMM_FREE(d_buffer,0);
     // print strings to stdout
-    thrust::host_vector<custring_view*> h_strings(*(pImpl->pList)); // just for checking nulls
+    thrust::host_vector<custring_view*> h_strings(pImpl->pList, pImpl->pList + pImpl->pListSize); // just for checking nulls
     thrust::host_vector<size_t> h_lens(lens);
     char* hstr = h_buffer;
     for( int idx=0; idx < count; ++idx )
@@ -300,7 +300,7 @@ int NVStrings::to_host(char** list, int start, int end)
     }
 
     // Deserialization host memory to memory provided by the caller
-    thrust::host_vector<custring_view*> h_strings(*(pImpl->pList)); // just for checking nulls
+    thrust::host_vector<custring_view*> h_strings(pImpl->pList, pImpl->pList + pImpl->pListSize); // just for checking nulls
     thrust::host_vector<size_t> h_offsets(offsets);
     h_offsets.push_back(msize); // include size as last offset
     for( unsigned int idx=0; idx < count; ++idx )
@@ -559,7 +559,7 @@ unsigned int NVStrings::get_nulls( unsigned int* array, bool emptyIsNull, bool d
 // number of strings in this instance
 unsigned int NVStrings::size() const
 {
-    return (unsigned int)pImpl->pList->size();
+    return (unsigned int)pImpl->pListSize;
 }
 
 struct statistics_attrs
@@ -599,7 +599,7 @@ void NVStrings::compute_statistics(StringsStatistics& stats)
     stats.total_strings = count;
     auto execpol = rmm::exec_policy(0);
     size_t stringsmem = pImpl->getMemorySize();
-    size_t ptrsmem = pImpl->pList->size() * sizeof(custring_view*);
+    size_t ptrsmem = pImpl->pListSize * sizeof(custring_view*);
     stats.total_memory = stringsmem + ptrsmem;
 
     custring_view_array d_strings = pImpl->getStringsPtr();
@@ -666,7 +666,7 @@ void NVStrings::compute_statistics(StringsStatistics& stats)
     // unique strings
     {
         // make a copy of the pointers so we can sort them
-        rmm::device_vector<custring_view*> sortcopy(*(pImpl->pList));
+        rmm::device_vector<custring_view*> sortcopy(pImpl->pList, pImpl->pList + pImpl->pListSize);
         custring_view_array d_sortcopy = sortcopy.data().get();
         thrust::sort(execpol->on(0), d_sortcopy, d_sortcopy+count, 
             [] __device__ (custring_view*& lhs, custring_view*& rhs) {

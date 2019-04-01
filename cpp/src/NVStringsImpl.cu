@@ -99,7 +99,8 @@ unsigned short* get_charcases()
 //
 NVStringsImpl::NVStringsImpl(unsigned int count) : bufferSize(0), memoryBuffer(0), stream_id(0)
 {
-    pList = new rmm::device_vector<custring_view*>(count,nullptr);
+    pList = thrust::device_malloc<custring_view*>(count);
+    pListSize = count;
 }
 
 NVStringsImpl::~NVStringsImpl()
@@ -107,14 +108,14 @@ NVStringsImpl::~NVStringsImpl()
     if( memoryBuffer )
         RMM_FREE(memoryBuffer,0);
     memoryBuffer = 0;
-    delete pList;
-    pList = 0;
+    thrust::device_free(pList);
+    pListSize = 0;
     bufferSize = 0;
 }
 
 char* NVStringsImpl::createMemoryFor( size_t* d_lengths )
 {
-    unsigned int count = (unsigned int)pList->size();
+    unsigned int count = (unsigned int)pListSize;
     auto execpol = rmm::exec_policy(stream_id);
     size_t outsize = thrust::reduce(execpol->on(stream_id), d_lengths, d_lengths+count);
     if( outsize==0 )
@@ -135,7 +136,7 @@ void NVStringsImpl::addOpTimes( const char* op, double sizeTime, double opTime )
 
 void NVStringsImpl::printTimingRecords()
 {
-    size_t count = pList->size();
+    size_t count = pListSize;
     if( !count )
         return;
     for( auto itr = mapTimes.begin(); itr != mapTimes.end(); itr++ )
@@ -485,12 +486,12 @@ int NVStrings_copy_strings( NVStringsImpl* pImpl, std::vector<NVStrings*>& strsl
 {
     auto execpol = rmm::exec_policy(0);
     auto pList = pImpl->pList;
-    unsigned int count = (unsigned int)pList->size();
+    unsigned int count = (unsigned int)pImpl->pListSize;
     size_t nbytes = 0;
     for( auto itr=strslist.begin(); itr!=strslist.end(); itr++ )
         nbytes += (*itr)->memsize();
 
-    custring_view_array d_results = pList->data().get();
+    custring_view_array d_results = pList.get();
     char* d_buffer = 0;
     RMM_ALLOC(&d_buffer,nbytes,0);
     size_t offset = 0;
